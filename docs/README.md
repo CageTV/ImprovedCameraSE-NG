@@ -19,6 +19,10 @@ Credits: [Capt. Panda](https://www.youtube.com/@CaptPanda)
 
 Main solution can be found inside of build/VC17/ImprovedCameraSE_VS2022.sln.
 
+## License
+* The Improved Camera SE source files are under the Mozilla Public License 2.0 (`LICENSE`).
+* The ng build links [alandtse's CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG) (GPL-3.0 with a modding exception), so the compiled `ImprovedCameraSE.dll` is distributed under the GNU General Public License v3.0 or later (full text in `LICENSE-GPL-3.0.txt`). MPL-2.0 section 3.3 allows this. See `NOTICE.txt` for the copyright statement and GPL notice.
+
 ## Credits
 * LogicDragon for [Enhanced Camera](https://www.nexusmods.com/skyrim/mods/57859/).
 * inmundano for the bulk reverse engineering work that went into Improved Camera SE.
