@@ -49,11 +49,19 @@ namespace stl {
 		T::func = trampoline.write_call<T::size>(a_src, T::thunk);
 	}
 
+	// Trampoline::allocate(Xbyak::CodeGenerator&) is only compiled into CommonLibSSE when it is built with SKSE_SUPPORT_XBYAK
+	inline void* allocate_code(SKSE::Trampoline& a_trampoline, Xbyak::CodeGenerator& a_code)
+	{
+		auto result = a_trampoline.allocate(a_code.getSize());
+		std::memcpy(result, a_code.getCode(), a_code.getSize());
+		return result;
+	}
+
 	template <class F, class T>
-	void write_vfunc()
+	void write_vfunc(std::size_t a_index = T::index)
 	{
 		REL::Relocation<std::uintptr_t> vtbl{ F::VTABLE[0] };
-		T::func = vtbl.write_vfunc(T::index, T::thunk);
+		T::func = vtbl.write_vfunc(a_index, T::thunk);
 	}
 
 }

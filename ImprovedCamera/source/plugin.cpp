@@ -120,6 +120,12 @@ namespace DLLMain {
 		Utils::GetVersionFromString(m_Config->ModuleData().sFileVersionMin, fileVersionMin);
 		Utils::GetVersionFromString(m_Config->ModuleData().sFileVersionMax, fileVersionMax);
 
+		// FileVersionMax in an ini from before Skyrim 1.7 stops at 1.6.1179, and would lock 1.7.x out
+		constexpr std::uint32_t supportedMax[4]{ 1, 7, 1179, 0 };
+		for (int i = 0; i < 4; i++)
+			if (fileVersionMax[i] < supportedMax[i])
+				fileVersionMax[i] = supportedMax[i];
+
 		if (m_SkyrimSE->VersionMajor() >= fileVersionMin[0] && m_SkyrimSE->VersionMajor() <= fileVersionMax[0] &&
 			m_SkyrimSE->VersionMinor() >= fileVersionMin[1] && m_SkyrimSE->VersionMinor() <= fileVersionMax[1] &&
 			m_SkyrimSE->VersionRevision() >= fileVersionMin[2] && m_SkyrimSE->VersionRevision() <= fileVersionMax[2] &&

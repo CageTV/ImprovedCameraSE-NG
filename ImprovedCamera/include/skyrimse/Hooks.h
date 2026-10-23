@@ -6,6 +6,7 @@
 
 #pragma once
 
+#ifndef ICSE_NG // alandtse's CommonLibSSE-NG has the full class
 namespace RE {
 
 	class BSLookAtModifier {
@@ -18,6 +19,7 @@ namespace RE {
 	};
 	//static_assert(sizeof(BSLookAtModifier) == 0x277);
 }
+#endif
 
 namespace Menu {
 

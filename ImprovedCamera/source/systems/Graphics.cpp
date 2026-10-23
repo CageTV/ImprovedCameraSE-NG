@@ -67,7 +67,11 @@ namespace Systems {
 				const auto renderer = RE::BSGraphics::Renderer::GetSingleton();
 				auto swapChain = renderer->GetRuntimeData().renderWindows[0].swapChain;
 
+#ifdef ICSE_NG // alandtse's CommonLibSSE-NG declares the swap chain with its own GUID type
+				if (SUCCEEDED(swapChain->GetDevice(reinterpret_cast<const REX::W32::GUID&>(__uuidof(ID3D11Device)), reinterpret_cast<void**>(pluginGraphics->m_Device.ReleaseAndGetAddressOf()))))
+#else
 				if (SUCCEEDED(swapChain->GetDevice(IID_PPV_ARGS(&pluginGraphics->m_Device))))
+#endif
 				{
 					pluginGraphics->m_Device->GetImmediateContext(&pluginGraphics->m_DeviceContext);
 					pluginGraphics->m_UI = UI::CreateMenu(pluginGraphics->m_OutputWindow);

@@ -74,6 +74,7 @@ namespace SKSE {
 		}
 	}
 
+#ifndef ICSE_NG // the ng build (alandtse's CommonLibSSE-NG) generates SKSEPlugin_Version and SKSEPlugin_Query from ng.cmake
 	SKSE_API constinit auto SKSEPlugin_Version = []() noexcept {
 		SKSE::PluginVersionData pluginData{};
 		REL::Version version{ VERSION_MAJOR, VERSION_MINOR, VERSION_REVISION, VERSION_BUILD };
@@ -107,6 +108,8 @@ namespace SKSE {
 		}
 		return true;
 	}
+
+#endif
 
 	SKSE_API bool SKSEPlugin_Load(const SKSE::LoadInterface* skse)
 	{

@@ -176,7 +176,7 @@ namespace Patch {
 				auto& trampoline = SKSE::GetTrampoline();
 				SKSE::AllocTrampoline(32);
 
-				_Effect = trampoline.write_call<5>(Address::Hook::ShaderReferenceEffect1, trampoline.allocate(patch));
+				_Effect = trampoline.write_call<5>(Address::Hook::ShaderReferenceEffect1, stl::allocate_code(trampoline, patch));
 			}
 
 		private:
@@ -211,7 +211,7 @@ namespace Patch {
 				auto& trampoline = SKSE::GetTrampoline();
 				SKSE::AllocTrampoline(32);
 
-				_Effect = trampoline.write_call<6>(Address::Hook::ShaderReferenceEffect2, trampoline.allocate(patch));
+				_Effect = trampoline.write_call<6>(Address::Hook::ShaderReferenceEffect2, stl::allocate_code(trampoline, patch));
 			}
 
 		private:
@@ -303,7 +303,7 @@ namespace Patch {
 			auto& trampoline = SKSE::GetTrampoline();
 			SKSE::AllocTrampoline(32);
 
-			_IsTaskPoolRequired = trampoline.write_call<5>(Address::Hook::Ragdoll_IsTaskPoolRequired, trampoline.allocate(patch));
+			_IsTaskPoolRequired = trampoline.write_call<5>(Address::Hook::Ragdoll_IsTaskPoolRequired, stl::allocate_code(trampoline, patch));
 		}
 
 	private:
@@ -553,7 +553,8 @@ namespace Patch {
 		stl::write_thunk_call<TESObjectCell>(Address::Hook::TESObjectCell_Get3D);  // Fixes body being hidden indoors
 		stl::write_thunk_call<SmoothAnimationTransitions>(Address::Hook::SmoothAnimationTransitions);
 		stl::write_vfunc<RE::BSLookAtModifier, HeadTracking>();
-		stl::write_vfunc<RE::TogglePOVHandler, TogglePOV>();
+		// AE 1.7.99 added two virtuals after PlayerInputHandler::CanProcess, which moved ProcessButton from slot 4 to 6
+		stl::write_vfunc<RE::TogglePOVHandler, TogglePOV>(pluginSkyrimSE->Build() == SkyrimSE::BuildInfo::k17 ? TogglePOV::index + 2 : TogglePOV::index);
 		stl::write_thunk_call<GetEffectNode_IsThirdPerson>(Address::Hook::GetEffectNode_IsThirdPerson);  // Fixes firstperson magic casting for thirdperson arms
 		stl::asm_replace<ForceFirstPerson>(Address::Hook::ForceFirstPerson);
 		stl::asm_replace<ForceThirdPerson>(Address::Hook::ForceThirdPerson);
@@ -599,12 +600,15 @@ namespace Patch {
 
 	void Hooks::Setup()
 	{
+		// Skyrim 1.7.x: these two call sites moved (checked against the 1.7.99 and 1.7.104 executables, the virtual call is unique in its function)
+		const bool is17 = DLLMain::Plugin::Get()->SkyrimSE()->Build() == SkyrimSE::BuildInfo::k17;
+
 		Address::Hook::ProcessInput = REL::RelocationID(67315, 68617).address() + 0x7B;
 		Address::Hook::UpdateSwitchPOV = REL::RelocationID(39401, 40476).address() + REL::VariantOffset(0x2AF, 0x294, 0).offset();
 		Address::Hook::UpdateCamera = REL::RelocationID(49852, 50784).address() + 0x1A6;
 		Address::Hook::UpdateFirstPerson = REL::RelocationID(39446, 40522).address() + 0xD7;
-		Address::Hook::TESObjectCell_Get3D = REL::RelocationID(18683, 19165).address() + REL::VariantOffset(0x7C, 0x7B, 0).offset();
-		Address::Hook::SmoothAnimationTransitions = REL::RelocationID(40937, 41996).address() + REL::VariantOffset(0x2EA, 0x2F4, 0).offset();
+		Address::Hook::TESObjectCell_Get3D = REL::RelocationID(18683, 19165).address() + (is17 ? 0x7A : REL::VariantOffset(0x7C, 0x7B, 0).offset());
+		Address::Hook::SmoothAnimationTransitions = REL::RelocationID(40937, 41996).address() + (is17 ? 0x303 : REL::VariantOffset(0x2EA, 0x2F4, 0).offset());
 		Address::Hook::ShaderReferenceEffect1 = REL::RelocationID(34111, 34913).address() + REL::VariantOffset(0xE1, 0xE1, 0).offset();
 		Address::Hook::ShaderReferenceEffect2 = REL::RelocationID(34111, 34913).address() + REL::VariantOffset(0x18A, 0x1F5, 0).offset();
 		Address::Hook::GetEffectNode_IsThirdPerson = REL::RelocationID(33361, 34142).address() + REL::VariantOffset(0x51, 0x51, 0).offset();
