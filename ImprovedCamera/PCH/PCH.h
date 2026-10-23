@@ -40,11 +40,21 @@ namespace stl {
 		asm_replace(a_from, T::size, reinterpret_cast<std::uintptr_t>(T::func));
 	}
 
+	// alandtse's CommonLibSSE-NG creates the trampoline on the first AllocTrampoline and ignores later sizes, so the ng build
+	// allocates everything it needs once in Hooks::Install and these calls do nothing there (a second request of 14 bytes
+	// left no room: "SKSE/Trampoline.cpp: failed to handle request")
+	inline void alloc_trampoline([[maybe_unused]] std::size_t a_size)
+	{
+#ifndef ICSE_NG
+		SKSE::AllocTrampoline(a_size);
+#endif
+	}
+
 	template <class T>
 	void write_thunk_call(std::uintptr_t a_src)
 	{
 		auto& trampoline = SKSE::GetTrampoline();
-		SKSE::AllocTrampoline(14);
+		alloc_trampoline(14);
 
 		T::func = trampoline.write_call<T::size>(a_src, T::thunk);
 	}

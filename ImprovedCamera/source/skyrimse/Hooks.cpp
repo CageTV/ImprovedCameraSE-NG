@@ -174,7 +174,7 @@ namespace Patch {
 				patch.ready();
 
 				auto& trampoline = SKSE::GetTrampoline();
-				SKSE::AllocTrampoline(32);
+				stl::alloc_trampoline(32);
 
 				_Effect = trampoline.write_call<5>(Address::Hook::ShaderReferenceEffect1, stl::allocate_code(trampoline, patch));
 			}
@@ -209,7 +209,7 @@ namespace Patch {
 				patch.ready();
 
 				auto& trampoline = SKSE::GetTrampoline();
-				SKSE::AllocTrampoline(32);
+				stl::alloc_trampoline(32);
 
 				_Effect = trampoline.write_call<6>(Address::Hook::ShaderReferenceEffect2, stl::allocate_code(trampoline, patch));
 			}
@@ -301,7 +301,7 @@ namespace Patch {
 			patch.ready();
 
 			auto& trampoline = SKSE::GetTrampoline();
-			SKSE::AllocTrampoline(32);
+			stl::alloc_trampoline(32);
 
 			_IsTaskPoolRequired = trampoline.write_call<5>(Address::Hook::Ragdoll_IsTaskPoolRequired, stl::allocate_code(trampoline, patch));
 		}
@@ -543,6 +543,10 @@ namespace Patch {
 	void Hooks::Install()
 	{
 		Setup();
+#ifdef ICSE_NG
+		// 13 call patches of 14 bytes and 3 small stubs come to about 240 bytes
+		SKSE::AllocTrampoline(512);
+#endif
 		auto plugin = DLLMain::Plugin::Get();
 		auto pluginSkyrimSE = plugin->SkyrimSE();
 		ic = pluginSkyrimSE->Camera();
