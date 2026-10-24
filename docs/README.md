@@ -20,8 +20,8 @@ Credits: [Capt. Panda](https://www.youtube.com/@CaptPanda)
 Main solution can be found inside of build/VC17/ImprovedCameraSE_VS2022.sln.
 
 ## License
-* The Improved Camera SE source files are under the Mozilla Public License 2.0 (`LICENSE`; `LICENSE-MPL-2.0.txt` in the download).
-* The ng build links [alandtse's CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG) (GPL-3.0 with a modding exception), so the compiled `ImprovedCameraSE.dll` is distributed under the GNU General Public License v3.0 or later (full text in `LICENSE-GPL-3.0.txt`, next to this file and in the repository root; `LICENSE.txt` in the download). MPL-2.0 section 3.3 allows this. See `NOTICE.txt` for the copyright statement and GPL notice.
+* The Improved Camera SE source files are under the Mozilla Public License 2.0 (`LICENSE-MPL-2.0.txt`).
+* The ng build links [alandtse's CommonLibSSE-NG](https://github.com/alandtse/CommonLibSSE-NG) (GPL-3.0 with a modding exception), so the compiled `ImprovedCameraSE.dll` is distributed under the GNU General Public License v3.0 or later (full text in `LICENSE` in the repository root and in `docs/LICENSE-GPL-3.0.txt` next to this file; `LICENSE.txt` in the download). MPL-2.0 section 3.3 allows this. See `NOTICE.txt` for the copyright statement and GPL notice.
 
 Copyright (c) the Improved Camera SE authors (see `AUTHORS.md`) and CageTV, for the 1.7.x changes.
 

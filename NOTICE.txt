@@ -7,11 +7,11 @@ The complete source of this download is in that repository; the tag matching thi
 Copyright (c) the Improved Camera SE authors (see docs/AUTHORS.md) and CageTV, for the 1.7.x changes.
 
 The source files of Improved Camera SE are licensed under the Mozilla Public License 2.0 (LICENSE-MPL-2.0.txt in this
-download, LICENSE in the repository). The ImprovedCameraSE.dll in this download is built with alandtse's CommonLibSSE-NG
+download and in the repository). The ImprovedCameraSE.dll in this download is built with alandtse's CommonLibSSE-NG
 (https://github.com/alandtse/CommonLibSSE-NG), which is licensed under the GNU General Public License v3.0 with a
 modding exception. The compiled ImprovedCameraSE.dll is therefore distributed under the terms of the GNU General
 Public License, version 3 or (at your option) any later version. The Mozilla Public License 2.0 allows this
-(section 3.3, Larger Work with a Secondary License). The full, unmodified GPL-3.0 text is in LICENSE.txt in this download (LICENSE-GPL-3.0.txt in the repository).
+(section 3.3, Larger Work with a Secondary License). The full, unmodified GPL-3.0 text is in LICENSE.txt in this download (LICENSE in the repository).
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
