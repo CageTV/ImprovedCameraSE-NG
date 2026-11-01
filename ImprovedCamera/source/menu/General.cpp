@@ -42,7 +42,9 @@ namespace Menu {
 			kFirstPersonOverhaul,
 			kOverrideVanillaArmsOnMovement,
 
-			kTotal = 24
+			kPrecisionCombatMode,
+
+			kTotal = 25
 		};
 	};
 	using MENU_ID = MENU_IDS::MENU_ID;
@@ -97,6 +99,9 @@ namespace Menu {
 			ControlType::kToggle, (void*)&m_pluginConfig->m_Fixes.bFirstPersonOverhaul, 0.0f, 0.0f, "", &MenuGeneral::OnCallback);
 		m_MenuNodes.emplace_back(2, "Override Vanilla Arms on Movement", "Restores vanilla arms for movement",
 			ControlType::kToggle, (void*)&m_pluginConfig->m_Fixes.bOverrideVanillaArmsOnMovement, 0.0f, 0.0f, "", &MenuGeneral::OnCallback);
+		m_MenuNodes.emplace_back(2, "Precision Combat Mode",
+			"Hide body from the start of drawing until fully sheathed, including fists and spells. Nearby enemies alone do not hide it. Keep native camera height both sheathed and drawn; retain vanilla arms and bypass IC body offsets and bone scaling while drawn. Save the profile to persist.",
+			ControlType::kToggle, (void*)&m_pluginConfig->m_General.bPrecisionCombatMode, 0.0f, 0.0f, "", &MenuGeneral::OnCallback);
 	}
 
 	void MenuGeneral::OnOpen()
@@ -128,6 +133,12 @@ namespace Menu {
 
 		switch (node)
 		{
+			case MENU_ID::kPrecisionCombatMode:
+			{
+				if (!begin && ImGui::IsItemClicked())
+					pluginSkyrimSE->Camera()->RefreshCombatMode();
+				break;
+			}
 			case MENU_ID::kEnableBody:
 			case MENU_ID::kEnableBodyConsole:
 			{

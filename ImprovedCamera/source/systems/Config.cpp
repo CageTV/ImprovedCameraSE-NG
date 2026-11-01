@@ -6,6 +6,7 @@
 
 // Precompiled Header
 #include "PCH.h"
+#include "utils/CombatPolicy.h"
 
 #include "systems/Config.h"
 
@@ -67,6 +68,7 @@ namespace Systems {
 				ProfileData.read(ini);
 
 				m_General.bEnableBody = std::stoi(ini.get("GENERAL").get("bEnableBody"));
+				m_General.bPrecisionCombatMode = ImprovedCamera::CombatPolicy::EnabledFromProfile(ini.get("GENERAL").get("bPrecisionCombatMode"));
 				m_General.bEnableBodyConsole = std::stoi(ini.get("GENERAL").get("bEnableBodyConsole"));
 				m_General.bEnableShadows = std::stoi(ini.get("GENERAL").get("bEnableShadows"));
 				m_General.bAdjustPlayerScale = std::stoi(ini.get("GENERAL").get("bAdjustPlayerScale"));
@@ -283,6 +285,7 @@ namespace Systems {
 			file.read(ini);
 
 			ini["GENERAL"]["bEnableBody"] = std::to_string(m_General.bEnableBody);
+			ini["GENERAL"]["bPrecisionCombatMode"] = std::to_string(m_General.bPrecisionCombatMode);
 			ini["GENERAL"]["bEnableBodyConsole"] = std::to_string(m_General.bEnableBodyConsole);
 			ini["GENERAL"]["bEnableShadows"] = std::to_string(m_General.bEnableShadows);
 			ini["GENERAL"]["bAdjustPlayerScale"] = std::to_string(m_General.bAdjustPlayerScale);

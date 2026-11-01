@@ -46,6 +46,7 @@ namespace Settings {
 		bool bEnableThirdPersonBowAim;
 		bool bEnableThirdPersonCrossbow;
 		bool bEnableThirdPersonCrossbowAim;
+		bool bPrecisionCombatMode = false;
 	};
 	// 12 Settings
 	struct Hide {

@@ -28,6 +28,10 @@ namespace ImprovedCamera {
 		void UpdateSwitchPOV();
 		void UpdateCamera(std::uint8_t currentID, std::uint8_t previousID, float deltaTime);
 		void UpdateFirstPerson();
+		void PrepareFirstPersonUpdate();
+        void PrepareCameraUpdate();
+		void RefreshCombatMode();
+		bool IsPrecisionCombatActive() const;
 		bool SmoothAnimationTransitions();
 		bool UpdateHeadTracking() const;
 		bool ShaderReferenceEffectFix1(void* pThis, RE::Actor* actor);
@@ -63,7 +67,7 @@ namespace ImprovedCamera {
 			}
 
 		private:
-			RE::NiNode* node;
+			RE::NiPointer<RE::NiNode> node;
 			float old_scale;
 		};
 
@@ -71,10 +75,33 @@ namespace ImprovedCamera {
 		bool UseThirdPersonLeftArm();
 		bool UseThirdPersonRightArm();
 
-		void UpdateSkeleton(bool show);
+		void UpdateSkeleton(bool show, bool forceRestore = false);
+        void UpdateCombatBodyVisibility(bool hide, bool poseReady = false);
+        void CaptureCombatPoses(RE::NiNode* first, RE::NiNode* third);
+        void FinishCombatPoses();
+        void RestoreCombatPoses();
+        struct CombatPose {
+            RE::NiPointer<RE::NiAVObject> node;
+            RE::NiPoint3 beforePosition{}, afterPosition{};
+            float beforeScale = 1.0f, afterScale = 1.0f;
+        };
+        struct CombatPoseScope {
+            ImprovedCameraSE& camera;
+            CombatPoseScope(ImprovedCameraSE& owner, RE::NiNode* first, RE::NiNode* third) : camera(owner) { camera.CaptureCombatPoses(first, third); }
+            ~CombatPoseScope() { camera.FinishCombatPoses(); }
+        };
+        struct CameraPose {
+            RE::NiPointer<RE::NiAVObject> node;
+            RE::NiPoint3 beforeLocal{}, afterLocal{}, beforeWorld{}, afterWorld{};
+        };
+        std::vector<CameraPose> m_CameraPoses;
+        std::vector<CombatPose> m_CombatPoses;
+        bool m_CombatBodyWasHidden = false;
+        RE::NiPointer<RE::NiNode> m_CombatFirstRoot, m_CombatThirdRoot, m_CombatHiddenRoot;
 		void FixWeaponPosition(RE::Actor* actor, RE::NiNode* firstpersonNode, RE::NiNode* thirdpersonNode);
 		void DisplayShadows(bool show);
 
+		bool UsesNativeFirstPersonCamera() const;
 		void UpdateFOV(RE::PlayerCamera* camera);
 
 		void TranslateCamera();
@@ -98,6 +125,9 @@ namespace ImprovedCamera {
 
 		std::uint8_t m_CameraEventID = CameraEvent::kFirstPerson;
 		float m_DeltaTime = 0.0f;
+		bool m_OwnsFOVDefault = false;
+		float m_SavedFOVDefault = 0.0f;
+		float m_LastWorldFOV = 0.0f;
 		uint8_t m_PreviousCameraID = 255;
 		uint8_t m_CurrentCameraID = 255;
 

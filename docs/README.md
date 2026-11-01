@@ -3,6 +3,12 @@
 Improved Camera SE is an immersive first person camera modification for [The Elder Scrolls V: Skyrim Special Edition](https://store.steampowered.com/app/489830/The_Elder_Scrolls_V_Skyrim_Special_Edition/).
 NG version allows this modification to work across multiple SkyrimSE versions from 1.5.97 to 1.6.1179 thanks to [CommonLibSSE-NG](https://github.com/CharmedBaryon/CommonLibSSE-NG) and [Address Library](https://github.com/meh321/AddressLibraryDatabase).
 
+## Precision compatibility (optional)
+
+The **Precision Combat Mode** option keeps native first-person arms and camera height during normal first person, hides the rendered body while drawing/drawn/sheathing, and avoids Improved Camera's combat pose offsets. It also includes fixes for draw/sheath flashing, quicksave camera offsets and FOV resets through the vanilla Tab menu.
+
+See [Precision Combat Mode: setup, behavior and testing](Precision-Combat-Mode.md). Enable it in **Left Shift + Home → General**, then save the profile. The option defaults to off. In-game validation was reported on **Skyrim 1.7.104 with Precision 2.0.6**; other runtimes need independent testing. This is an Improved Camera contribution; Precision itself is unchanged.
+
 ## Showcase
 [![Improved Camera SE](https://img.youtube.com/vi/SGQNoSJBfSk/maxresdefault.jpg)](https://www.youtube.com/watch?v=SGQNoSJBfSk "Improved Camera SE")
 Credits: [Capt. Panda](https://www.youtube.com/@CaptPanda)
