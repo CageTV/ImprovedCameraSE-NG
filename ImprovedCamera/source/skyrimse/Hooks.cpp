@@ -74,7 +74,8 @@ namespace Patch {
 			static float deltaTime;
 			currentTime = std::chrono::steady_clock::now();
 
-			// Call original function
+			// Clear owned offsets before vanilla refreshes the camera.
+            ic->PrepareCameraUpdate();
 			func(tesCamera);
 
 			static bool init;
@@ -107,6 +108,7 @@ namespace Patch {
 
 		static void thunk(RE::NiAVObject* firstpersonObject, RE::NiUpdateData* updateData)
 		{
+			ic->PrepareFirstPersonUpdate();
 			func(firstpersonObject, updateData);
 			ic->UpdateFirstPerson();
 		}
@@ -131,6 +133,8 @@ namespace Patch {
 		{
 			if (actor)
 			{
+				if (ic->IsPrecisionCombatActive())
+					return false; // Native first-person policy; displaced FF90 call has no direct original target.
 				return ic->SmoothAnimationTransitions();
 			}
 			return false;

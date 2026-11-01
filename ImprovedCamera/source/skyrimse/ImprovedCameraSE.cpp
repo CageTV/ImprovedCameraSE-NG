@@ -16,6 +16,8 @@
 #include "utils/Log.h"
 #include "utils/PatternScan.h"
 #include "utils/Utils.h"
+#include "utils/CombatPolicy.h"
+#include <cmath>
 
 namespace ImprovedCamera {
 
@@ -26,6 +28,147 @@ namespace ImprovedCamera {
 		m_pluginConfig = DLLMain::Plugin::Get()->Config();
 		SetupCameraData();
 	}
+
+
+    bool ImprovedCameraSE::UsesNativeFirstPersonCamera() const
+    {
+        auto player = RE::PlayerCharacter::GetSingleton();
+        auto camera = RE::PlayerCamera::GetSingleton();
+        if (!player || !camera || !camera->currentState || !m_ICamera)
+            return false;
+        const bool normalState = !m_IsFakeCamera &&
+            m_ICamera->GetID() == RE::CameraStates::kFirstPerson &&
+            m_ICamera->GetStateID() <= CameraFirstPerson::State::kWeaponDrawnIdle &&
+            !Helper::IsBeastMode() && !player->IsInKillMove() && !player->IsDead();
+        return m_pluginConfig->General().bPrecisionCombatMode && normalState &&
+            camera->currentState->id == RE::CameraStates::kFirstPerson;
+    }
+
+    bool ImprovedCameraSE::IsPrecisionCombatActive() const
+    {
+        auto player = RE::PlayerCharacter::GetSingleton();
+        return UsesNativeFirstPersonCamera() && player &&
+            CombatPolicy::WeaponOut(static_cast<unsigned>(player->AsActorState()->GetWeaponState()));
+    }
+
+    void ImprovedCameraSE::CaptureCombatPoses(RE::NiNode* first, RE::NiNode* third)
+    {
+        if (!m_pluginConfig->General().bPrecisionCombatMode)
+            return;
+        m_CombatPoses.clear();
+        m_CombatFirstRoot.reset(first);
+        m_CombatThirdRoot.reset(third);
+        const auto capture = [this](RE::NiAVObject* node) {
+            if (!node) return;
+            CombatPose pose;
+            pose.node.reset(node);
+            pose.beforePosition = pose.afterPosition = node->local.translate;
+            pose.beforeScale = pose.afterScale = node->local.scale;
+            m_CombatPoses.push_back(pose);
+        };
+        capture(first);
+        capture(third);
+        capture(Helper::FindNode(first, "NPC L UpperArm [LUar]"));
+        capture(Helper::FindNode(first, "NPC R UpperArm [RUar]"));
+    }
+
+    void ImprovedCameraSE::FinishCombatPoses()
+    {
+        for (auto& pose : m_CombatPoses) {
+            pose.afterPosition = pose.node->local.translate;
+            pose.afterScale = pose.node->local.scale;
+        }
+    }
+
+    void ImprovedCameraSE::RestoreCombatPoses()
+    {
+        bool changed = false;
+        for (auto& pose : m_CombatPoses) {
+            // Restore only our unchanged edits, never a newer engine/mod pose.
+            if (CombatPolicy::RestorePosition(pose.beforePosition, pose.afterPosition, pose.node->local.translate)) {
+                pose.node->local.translate = pose.beforePosition;
+                changed = true;
+            }
+            if (CombatPolicy::RestoreScale(pose.beforeScale, pose.afterScale, pose.node->local.scale)) {
+                pose.node->local.scale = pose.beforeScale;
+                changed = true;
+            }
+        }
+        if (changed) {
+            auto player = RE::PlayerCharacter::GetSingleton();
+            if (player && player->Get3D(false) == m_CombatThirdRoot.get())
+                Helper::UpdateNode(m_CombatThirdRoot.get());
+            if (player && player->Get3D(true) == m_CombatFirstRoot.get())
+                Helper::UpdateNode(m_CombatFirstRoot.get());
+        }
+        m_CombatPoses.clear();
+        m_CombatFirstRoot.reset();
+        m_CombatThirdRoot.reset();
+    }
+
+    void ImprovedCameraSE::PrepareCameraUpdate()
+    {
+        // Save/screenshots can update the camera more than once per animation
+        // pose. Remove only our previous unchanged offsets before vanilla runs.
+        for (auto& pose : m_CameraPoses) {
+            if (CombatPolicy::RestorePosition(pose.beforeLocal, pose.afterLocal, pose.node->local.translate))
+                pose.node->local.translate = pose.beforeLocal;
+            if (CombatPolicy::RestorePosition(pose.beforeWorld, pose.afterWorld, pose.node->world.translate))
+                pose.node->world.translate = pose.beforeWorld;
+        }
+        m_CameraPoses.clear();
+        if (IsPrecisionCombatActive()) UpdateCombatBodyVisibility(true);
+    }
+
+    void ImprovedCameraSE::PrepareFirstPersonUpdate()
+    {
+        if (m_pluginConfig->General().bPrecisionCombatMode || !m_CombatPoses.empty()) {
+            // Clear old visual bone overrides BEFORE vanilla updates its arms.
+            UpdateSkeleton(true, true);
+            RestoreCombatPoses();
+        }
+        if (IsPrecisionCombatActive()) UpdateCombatBodyVisibility(true);
+    }
+
+    void ImprovedCameraSE::RefreshCombatMode()
+    {
+        PrepareFirstPersonUpdate();
+        UpdateCombatBodyVisibility(IsPrecisionCombatActive(), true);
+        UpdateSwitchPOV();
+    }
+
+    void ImprovedCameraSE::UpdateCombatBodyVisibility(bool hide, bool poseReady)
+    {
+        auto player = RE::PlayerCharacter::GetSingleton();
+        auto root = player && player->Get3D(false) ? player->Get3D(false)->AsNode() : nullptr;
+        auto camera = RE::PlayerCamera::GetSingleton();
+        if (!hide && !poseReady && m_CombatHiddenRoot && root == m_CombatHiddenRoot.get() &&
+            camera && camera->currentState && camera->currentState->id == RE::CameraStates::kFirstPerson) {
+            // Do not reveal a native combat pose before the IC body is rebuilt.
+            root->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+            return;
+        }
+        if (m_CombatHiddenRoot && (!hide || root != m_CombatHiddenRoot.get())) {
+            // Restore the tracked root's pre-existing render flag, including old
+            // roots retained during an equipment/scene reload. Then let IC's
+            // normal POV handler determine visibility for the current root.
+            if (m_CombatBodyWasHidden)
+                m_CombatHiddenRoot->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+            else
+                m_CombatHiddenRoot->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+            m_CombatHiddenRoot.reset();
+            UpdateSwitchPOV();
+            LOG_INFO("Precision combat mode: restored normal IC visibility");
+        }
+        if (hide && root) {
+            if (!m_CombatHiddenRoot) {
+                m_CombatBodyWasHidden = root->GetFlags().any(RE::NiAVObject::Flag::kHidden);
+                m_CombatHiddenRoot.reset(root);
+                LOG_INFO("Precision combat mode: hiding render body; skipping IC pose changes; retaining vanilla arms");
+            }
+            root->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+        }
+    }
 
 	bool ImprovedCameraSE::ProcessInput(const RE::InputEvent* const* a_event)
 	{
@@ -97,6 +240,7 @@ namespace ImprovedCamera {
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto camera = RE::PlayerCamera::GetSingleton();
+		if (!player || !camera || !camera->currentState) return;
 		std::uint32_t cameraID = camera->currentState->id;
 
 		switch (cameraID)
@@ -155,6 +299,11 @@ namespace ImprovedCamera {
 
 		auto thirdpersonNode = thirdperson3D->AsNode();
 
+		if (IsPrecisionCombatActive() || m_CombatHiddenRoot.get() == thirdpersonNode)
+		{
+			thirdpersonNode->GetFlags().set(RE::NiAVObject::Flag::kHidden);
+			return;
+		}
 		if (cameraID == RE::CameraStates::kFirstPerson)
 		{
 			bool consoleMenu = RE::UI::GetSingleton()->IsMenuOpen("Console");
@@ -183,14 +332,18 @@ namespace ImprovedCamera {
 		// Stop processing on Tween/MapMenu
 		bool mapMenu = RE::UI::GetSingleton()->IsMenuOpen("MapMenu");
 		if (m_CurrentCameraID == RE::CameraStates::kTween || mapMenu)
+		{
+			UpdateFOV(RE::PlayerCamera::GetSingleton());
+			UpdateCombatBodyVisibility(false);
 			return;
+		}
 
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto playerCamera = RE::PlayerCamera::GetSingleton();
 
 		auto actor = playerCamera->cameraTarget.get().get();
 
-		if (!actor->IsPlayerRef() && m_CurrentCameraID != RE::CameraStates::kMount)
+		if (!actor || (!actor->IsPlayerRef() && m_CurrentCameraID != RE::CameraStates::kMount))
 		{
 			if (currentID == RE::CameraStates::kFirstPerson)
 				playerCamera->ForceThirdPerson();
@@ -382,23 +535,27 @@ namespace ImprovedCamera {
 				m_IsFakeCamera = false;
 			}
 		}
+		// Classify combat only after the current camera/state has settled.
+		UpdateCombatBodyVisibility(IsPrecisionCombatActive());
 		// Good to go start translating the camera
-		if (m_CurrentCameraID == RE::CameraStates::kFirstPerson || m_IsFakeCamera)
+		if (!IsPrecisionCombatActive() && (m_CurrentCameraID == RE::CameraStates::kFirstPerson || m_IsFakeCamera))
 			TranslateCamera();
 	}
 
 	void ImprovedCameraSE::UpdateFirstPerson()
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
+		auto playerCamera = RE::PlayerCamera::GetSingleton();
+		if (!player || !playerCamera || !playerCamera->currentState || !player->Get3D(1) || !player->Get3D(0)) return;
 		auto firstpersonNode = player->Get3D(1)->AsNode();
 		auto thirdpersonNode = player->Get3D(0)->AsNode();
-		auto playerCamera = RE::PlayerCamera::GetSingleton();
+		if (!firstpersonNode || !thirdpersonNode) return;
 		auto cameraID = playerCamera->currentState->id;
 		bool mapMenu = RE::UI::GetSingleton()->IsMenuOpen("MapMenu");
 
 		auto actor = playerCamera->cameraTarget.get().get();
 
-		if (!actor->IsPlayerRef() && m_CurrentCameraID != RE::CameraStates::kMount)
+		if (!actor || (!actor->IsPlayerRef() && m_CurrentCameraID != RE::CameraStates::kMount))
 			return;
 
 		// Don't process on AutoVanity or MapMenu
@@ -430,6 +587,13 @@ namespace ImprovedCamera {
 				m_iRagdollFrame = 0;
 		}
 
+		if (IsPrecisionCombatActive())
+		{
+			UpdateSkeleton(true, true);
+			UpdateCombatBodyVisibility(true);
+			return; // Original engine arm update already ran; no IC scaling or translation.
+		}
+
 		// Reset head states when m_IsFakeCamera is switched off.
 		auto thirdpersonState = (RE::ThirdPersonState*)RE::PlayerCamera::GetSingleton()->currentState.get();
 		if (cameraID != RE::CameraStates::kFirstPerson && thirdpersonState->targetZoomOffset > *fMinCurrentZoom)
@@ -452,6 +616,7 @@ namespace ImprovedCamera {
 
 		if (cameraID == RE::CameraStates::kFirstPerson || m_CurrentCameraID == RE::CameraStates::kTween && m_PreviousCameraID == RE::CameraStates::kFirstPerson || m_IsFakeCamera)
 		{
+			CombatPoseScope poseScope(*this, firstpersonNode, thirdpersonNode);
 			// Update player scale
 			if (m_pluginConfig->General().bAdjustPlayerScale)
 			{
@@ -488,6 +653,8 @@ namespace ImprovedCamera {
 			if (GetHeadRotation(&headRot) || m_IsFakeCamera)
 				TranslateFirstPersonModel();
 		}
+        // Reveal only after normal IC transforms and bone visibility are ready.
+        UpdateCombatBodyVisibility(false, true);
 	}
 
 	bool ImprovedCameraSE::SmoothAnimationTransitions()
@@ -509,6 +676,7 @@ namespace ImprovedCamera {
 
 	bool ImprovedCameraSE::UpdateHeadTracking() const
 	{
+		if (IsPrecisionCombatActive()) return true;
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto camera = RE::PlayerCamera::GetSingleton();
 
@@ -810,6 +978,7 @@ namespace ImprovedCamera {
 	////////////////////////////////////////////////////////////////
 	bool ImprovedCameraSE::UseThirdPersonArms()
 	{
+		if (IsPrecisionCombatActive()) return false;
 		using namespace Address::Function;
 
 		auto player = RE::PlayerCharacter::GetSingleton();
@@ -852,6 +1021,7 @@ namespace ImprovedCamera {
 
 	bool ImprovedCameraSE::UseThirdPersonLeftArm()
 	{
+		if (IsPrecisionCombatActive()) return false;
 		using namespace Address::Function;
 
 		auto player = RE::PlayerCharacter::GetSingleton();
@@ -904,6 +1074,7 @@ namespace ImprovedCamera {
 
 	bool ImprovedCameraSE::UseThirdPersonRightArm()
 	{
+		if (IsPrecisionCombatActive()) return false;
 		using namespace Address::Function;
 
 		auto player = RE::PlayerCharacter::GetSingleton();
@@ -928,12 +1099,15 @@ namespace ImprovedCamera {
 		return false;
 	}
 
-	void ImprovedCameraSE::UpdateSkeleton(bool show)
+	void ImprovedCameraSE::UpdateSkeleton(bool show, bool forceRestore)
 	{
-		auto player = RE::PlayerCharacter::GetSingleton();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
-
 		static std::vector<std::unique_ptr<NodeOverride>> overrides;
+		if (forceRestore) { overrides.clear(); m_TweenShown = false; return; }
+		if (IsPrecisionCombatActive()) { overrides.clear(); return; }
+		auto player = RE::PlayerCharacter::GetSingleton();
+		if (!player || !player->Get3D(0)) return;
+		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		if (!thirdpersonNode) return;
 
 		// Don't clear if Tween is shown
 		if (!m_TweenShown)
@@ -1031,6 +1205,7 @@ namespace ImprovedCamera {
 
 	void ImprovedCameraSE::FixWeaponPosition(RE::Actor* actor, RE::NiNode* firstpersonNode, RE::NiNode* thirdpersonNode)
 	{
+		if (IsPrecisionCombatActive()) return;
 		if (UseThirdPersonArms() && actor->AsActorState()->IsWeaponDrawn())
 		{
 			auto fpWeaponNode = Helper::FindNode(firstpersonNode, "WEAPON");
@@ -1127,34 +1302,56 @@ namespace ImprovedCamera {
 
 	void ImprovedCameraSE::UpdateFOV(RE::PlayerCamera* camera)
 	{
-		float fov = *fDefaultWorldFOV;  // 80.0f
-
-		if (m_CurrentCameraID == RE::CameraStates::kFirstPerson)
+		if (!camera || !fDefaultWorldFOV) return;
+		const auto& settings = m_pluginConfig->FOV();
+		if (!settings.bEnableOverride)
 		{
-			float fovHands = m_pluginConfig->FOV().fFirstPersonHands;  // 80.0f
-
-			if (camera->firstPersonFOV != fovHands)
-				camera->firstPersonFOV = fovHands;
+			// Return the reset setting only if it still contains our last write.
+			if (m_OwnsFOVDefault && *fDefaultWorldFOV == m_LastWorldFOV)
+				*fDefaultWorldFOV = m_SavedFOVDefault;
+			m_OwnsFOVDefault = false;
+			return;
 		}
-		// Don't update during Dialogue/KeyHole menus
+
 		auto ui = RE::UI::GetSingleton();
-		bool dialogueMenu = ui->IsMenuOpen("Dialogue Menu");
-		bool keyHole = ui->IsMenuOpen("Keyhole");
+		// These menus own their camera projection; do not change it underneath them.
+		if (!ui || ui->IsMenuOpen("MapMenu") || ui->IsMenuOpen("Dialogue Menu") ||
+			ui->IsMenuOpen("Keyhole") || ui->IsMenuOpen("RaceSex Menu")) return;
 
-		if (!dialogueMenu && !keyHole)
+		if (m_CurrentCameraID == RE::CameraStates::kTween)
 		{
-			if (m_pluginConfig->FOV().bEnableOverride && *m_ICamera->GetData().EventActive)
-			{
-				fov = *m_ICamera->GetData().FOV;
-
-				if (camera->worldFOV != fov)
-					camera->worldFOV = fov;
-			}
+			// Tab's tween camera resets the live field from the vanilla default.
+			// Retain the last gameplay selection without selecting a new event.
+			if (m_OwnsFOVDefault) camera->worldFOV = m_LastWorldFOV;
+			return;
 		}
+
+		if (m_CurrentCameraID == RE::CameraStates::kFirstPerson &&
+			std::isfinite(settings.fFirstPersonHands) && settings.fFirstPersonHands >= 1.0f && settings.fFirstPersonHands <= 165.0f)
+			camera->firstPersonFOV = settings.fFirstPersonHands;
+
+		if (!m_ICamera) return;
+		const auto& data = m_ICamera->GetData();
+		if (!data.EventActive || !*data.EventActive || !data.FOV) return;
+		const float fov = *data.FOV;
+		if (!std::isfinite(fov) || fov < 1.0f || fov > 165.0f) return;
+
+		// Vanilla menu exits use this setting as their reset source. Keep it in
+		// agreement with the selected IC event instead of snapping to the INI FOV.
+		if (!m_OwnsFOVDefault || *fDefaultWorldFOV != m_LastWorldFOV)
+			m_SavedFOVDefault = *fDefaultWorldFOV;
+		m_OwnsFOVDefault = true;
+		m_LastWorldFOV = fov;
+		*fDefaultWorldFOV = fov;
+		camera->worldFOV = fov;
 	}
 
 	void ImprovedCameraSE::TranslateCamera()
 	{
+        // Use the engine's camera baseline both sheathed and drawn. IC's idle
+        // eye-bone/head offsets otherwise disappear in combat and Tab's tween,
+        // producing a height step. Body placement remains a visual-only change.
+        if (UsesNativeFirstPersonCamera()) return;
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto playerState = player->AsActorState();
 		auto firstpersonNode = player->Get3D(1)->AsNode();
@@ -1170,6 +1367,14 @@ namespace ImprovedCamera {
 		if (!cameraNI)
 			return;
 
+        m_CameraPoses.clear();
+        for (RE::NiAVObject* node : {static_cast<RE::NiAVObject*>(cameraNode), static_cast<RE::NiAVObject*>(cameraNI)}) {
+            CameraPose pose;
+            pose.node.reset(node);
+            pose.beforeLocal = pose.afterLocal = node->local.translate;
+            pose.beforeWorld = pose.afterWorld = node->world.translate;
+            m_CameraPoses.push_back(pose);
+        }
 		RE::NiPoint3 point1{}, point2{}, lerp{};
 		ScalePoint(&point1, thirdpersonNode->world.scale);
 		Utils::MatrixVectorMultiply(&point2, &thirdpersonNode->world.rotate, &point1);
@@ -1225,10 +1430,15 @@ namespace ImprovedCamera {
 		}
 		// For floating quest markers
 		Helper::UpdateNode((RE::NiNode*)cameraNI, RE::NiUpdateData::Flag::kDirty);
+        for (auto& pose : m_CameraPoses) {
+            pose.afterLocal = pose.node->local.translate;
+            pose.afterWorld = pose.node->world.translate;
+        }
 	}
 
 	void ImprovedCameraSE::TranslateFirstPersonModel()
 	{
+		if (IsPrecisionCombatActive()) return;
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto firstpersonNode = player->Get3D(1)->AsNode();
 		auto thirdpersonNode = player->Get3D(0)->AsNode();
@@ -1253,6 +1463,7 @@ namespace ImprovedCamera {
 
 	void ImprovedCameraSE::TranslateThirdPersonModel()
 	{
+		if (IsPrecisionCombatActive()) return;
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto firstpersonNode = player->Get3D(1)->AsNode();
 		auto thirdpersonNode = player->Get3D(0)->AsNode();
