@@ -195,11 +195,13 @@ namespace Events {
 	void Observer::ResetArms()
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto thirdperson3D = player->Get3D(0);
+		auto thirdpersonNode = thirdperson3D ? thirdperson3D->AsNode() : nullptr;
 		auto pluginCamera = DLLMain::Plugin::Get()->SkyrimSE()->Camera();
 
 		pluginCamera->UpdateSkeleton(true);
-		Helper::UpdateNode(thirdpersonNode);
+		if (thirdpersonNode)
+			Helper::UpdateNode(thirdpersonNode);
 	}
 
 }

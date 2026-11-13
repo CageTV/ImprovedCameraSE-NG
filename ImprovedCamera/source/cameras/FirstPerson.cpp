@@ -91,8 +91,9 @@ namespace ImprovedCamera {
 			{
 				m_FirstPersonState = CameraFirstPerson::State::kIdle;
 				// Unfade first person body due to stool/table fix.
-				auto firstpersonNode = this->Player->Get3D(1)->AsNode();
-				firstpersonNode->fadeAmount = 1.0f;
+				auto firstpersonNode = this->Player->Get3D(1) ? this->Player->Get3D(1)->AsNode() : nullptr;
+				if (firstpersonNode)
+					firstpersonNode->fadeAmount = 1.0f;
 				return true;
 			}
 			// Weapon Drawn Entered
@@ -100,8 +101,9 @@ namespace ImprovedCamera {
 			{
 				m_FirstPersonState = CameraFirstPerson::State::kWeaponDrawnIdle;
 				// Unfade first person body due to stool/table fix.
-				auto firstpersonNode = this->Player->Get3D(1)->AsNode();
-				firstpersonNode->fadeAmount = 1.0f;
+				auto firstpersonNode = this->Player->Get3D(1) ? this->Player->Get3D(1)->AsNode() : nullptr;
+				if (firstpersonNode)
+					firstpersonNode->fadeAmount = 1.0f;
 				return true;
 			}
 			// Sitting Entered
@@ -109,8 +111,9 @@ namespace ImprovedCamera {
 			{
 				m_FirstPersonState = CameraFirstPerson::State::kSittingIdle;
 				// Fades first person body so it is not shown when sitting on stools/at tables.
-				auto firstpersonNode = this->Player->Get3D(1)->AsNode();
-				firstpersonNode->fadeAmount = 0.0f;
+				auto firstpersonNode = this->Player->Get3D(1) ? this->Player->Get3D(1)->AsNode() : nullptr;
+				if (firstpersonNode)
+					firstpersonNode->fadeAmount = 0.0f;
 				return true;
 			}
 			// Cartride Entered
@@ -118,8 +121,9 @@ namespace ImprovedCamera {
 			{
 				m_FirstPersonState = CameraFirstPerson::State::kCartRideIdle;
 				// Show third person body during cartride.
-				auto thirdpersonNode = this->Player->Get3D(0)->AsNode();
-				thirdpersonNode->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
+				auto thirdpersonNode = this->Player->Get3D(0) ? this->Player->Get3D(0)->AsNode() : nullptr;
+				if (thirdpersonNode)
+					thirdpersonNode->GetFlags().reset(RE::NiAVObject::Flag::kHidden);
 				return true;
 			}
 			// Cartride Dismounting

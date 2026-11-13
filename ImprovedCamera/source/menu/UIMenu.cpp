@@ -160,10 +160,25 @@ namespace Menu {
 		ImGui::NewFrame();
 	}
 
+	// The menu opens with LShift + the menu key. When the game's walk / run toggle is bound to Shift, that Shift press flips it, so remember the
+	// state from before the press and put it back when the menu closes.
+	static bool s_runningKnown = false;
+	static bool s_runningBeforeMenu = false;
+	static bool s_restoreRunning = false;
+
 	void UIMenu::OnUpdate()
 	{
 		static HWND ForegroundWindow;
 		ForegroundWindow = GetForegroundWindow();
+
+		if (!m_DisplayUI && (GetAsyncKeyState(VK_LSHIFT) & 0x8000) == 0)
+		{
+			if (auto playerControls = RE::PlayerControls::GetSingleton())
+			{
+				s_runningBeforeMenu = playerControls->data.running;
+				s_runningKnown = true;
+			}
+		}
 
 		// Focus loss detection - Force close.
 		if (ForegroundWindow && ForegroundWindow != m_UIMenuWindow && m_DisplayUI)
@@ -174,6 +189,7 @@ namespace Menu {
 		if (ForegroundWindow == m_ApplicationWindow && !m_DisplayUI && (GetAsyncKeyState(m_MenuKey) & 0x8000) != 0 && (GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0)
 		{
 			m_DisplayUI = true;
+			s_restoreRunning = s_runningKnown;
 
 			if (m_pluginConfig->ModuleData().iMenuMode == Systems::Window::UIDisplay::kInternal)
 			{
@@ -305,6 +321,12 @@ namespace Menu {
 		io.MouseDrawCursor = false;
 
 		m_DisplayUI = false;
+		if (s_restoreRunning)
+		{
+			s_restoreRunning = false;
+			if (auto playerControls = RE::PlayerControls::GetSingleton())
+				playerControls->data.running = s_runningBeforeMenu;
+		}
 		for (Interface::IMenu* menu : m_Menu)
 			menu->OnClose();
 

@@ -40,8 +40,9 @@ namespace ImprovedCamera {
 				m_TransitionState = CameraTransition::State::kTransformation;
 				SetData();
 				// Set fade level
-				auto thirdpersonNode = this->Player->Get3D(0)->AsNode();
-				thirdpersonNode->fadeAmount = 0.0;
+				auto thirdpersonNode = this->Player->Get3D(0) ? this->Player->Get3D(0)->AsNode() : nullptr;
+				if (thirdpersonNode)
+					thirdpersonNode->fadeAmount = 0.0;
 				return true;
 			}
 			// Werewolf Killmove

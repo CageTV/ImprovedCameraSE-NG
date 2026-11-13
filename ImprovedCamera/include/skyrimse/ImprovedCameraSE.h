@@ -115,6 +115,7 @@ namespace ImprovedCamera {
 		static inline TDM_API::IVTDM2* m_TDMAPI = nullptr;
 		bool m_SmoothCamSnapshot = false;
 		bool m_TDMSnapshot = false;
+		float m_SavedThirdPersonZoom = -0.125f;  // third person zoom from before the last switch to first person
 
 		// Need to shut these off when needed with TDM to stop horse issues.
 		//    Since we are doing this might as well do the same for Werewolf/VampireLord etc.

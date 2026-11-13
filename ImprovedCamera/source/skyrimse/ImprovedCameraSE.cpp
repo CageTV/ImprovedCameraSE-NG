@@ -21,6 +21,13 @@ namespace ImprovedCamera {
 
 	using namespace Address::Variable;
 
+	// The player's 3D can be missing, or not a node at all (loading, transformations, dragon / mount forms): never use it unchecked.
+	static RE::NiNode* PlayerNode(RE::PlayerCharacter* a_player, bool a_firstPerson)
+	{
+		auto root = a_player ? a_player->Get3D(a_firstPerson) : nullptr;
+		return root ? root->AsNode() : nullptr;
+	}
+
 	ImprovedCameraSE::ImprovedCameraSE()
 	{
 		m_pluginConfig = DLLMain::Plugin::Get()->Config();
@@ -390,8 +397,10 @@ namespace ImprovedCamera {
 	void ImprovedCameraSE::UpdateFirstPerson()
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
-		auto firstpersonNode = player->Get3D(1)->AsNode();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto firstpersonNode = PlayerNode(player, true);
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!firstpersonNode || !thirdpersonNode)
+			return;
 		auto playerCamera = RE::PlayerCamera::GetSingleton();
 		auto cameraID = playerCamera->currentState->id;
 		bool mapMenu = RE::UI::GetSingleton()->IsMenuOpen("MapMenu");
@@ -661,9 +670,12 @@ namespace ImprovedCamera {
 		if (m_ICamera->GetID() == RE::CameraStates::kThirdPerson && m_ICamera->GetStateID() >= CameraThirdPerson::State::kScriptedEnter)
 		{
 			if (thirdpersonState->targetZoomOffset == minCurrentZoom)
-				thirdpersonState->targetZoomOffset = -0.125f;
+				thirdpersonState->targetZoomOffset = m_SavedThirdPersonZoom;
 			else
 			{
+				// Remember the third person zoom so leaving first person gives it back instead of the closest zoom
+				if (thirdpersonState->targetZoomOffset > minCurrentZoom + 0.03f)
+					m_SavedThirdPersonZoom = thirdpersonState->targetZoomOffset;
 				m_IsFirstPerson = true;
 				thirdpersonState->targetZoomOffset = minCurrentZoom;
 			}
@@ -671,9 +683,12 @@ namespace ImprovedCamera {
 		else if (m_ICamera->GetID() == RE::CameraStates::kMount && m_ICamera->GetStateID() >= CameraHorse::State::kRiding && m_ICamera->GetStateID() <= CameraHorse::State::kWeaponDrawnIdle)
 		{
 			if (thirdpersonState->targetZoomOffset == minCurrentZoom)
-				thirdpersonState->targetZoomOffset = -0.125f;
+				thirdpersonState->targetZoomOffset = m_SavedThirdPersonZoom;
 			else
 			{
+				// Remember the third person zoom so leaving first person gives it back instead of the closest zoom
+				if (thirdpersonState->targetZoomOffset > minCurrentZoom + 0.03f)
+					m_SavedThirdPersonZoom = thirdpersonState->targetZoomOffset;
 				m_IsFirstPerson = true;
 				thirdpersonState->targetZoomOffset = minCurrentZoom;
 			}
@@ -681,9 +696,12 @@ namespace ImprovedCamera {
 		else if (m_ICamera->GetID() == RE::CameraStates::kDragon && m_ICamera->GetStateID() == CameraDragon::State::kRiding)
 		{
 			if (thirdpersonState->targetZoomOffset == minCurrentZoom)
-				thirdpersonState->targetZoomOffset = -0.125f;
+				thirdpersonState->targetZoomOffset = m_SavedThirdPersonZoom;
 			else
 			{
+				// Remember the third person zoom so leaving first person gives it back instead of the closest zoom
+				if (thirdpersonState->targetZoomOffset > minCurrentZoom + 0.03f)
+					m_SavedThirdPersonZoom = thirdpersonState->targetZoomOffset;
 				m_IsFirstPerson = true;
 				thirdpersonState->targetZoomOffset = minCurrentZoom;
 			}
@@ -743,9 +761,12 @@ namespace ImprovedCamera {
 
 		if (actor == player)
 		{
-			auto thirdpersonNode = player->Get3D(0)->AsNode();
-			thirdpersonNode->local.translate = m_thirdpersonLocalTranslate;
-			Helper::UpdateNode(thirdpersonNode);
+			auto thirdpersonNode = PlayerNode(player, false);
+			if (thirdpersonNode)
+			{
+				thirdpersonNode->local.translate = m_thirdpersonLocalTranslate;
+				Helper::UpdateNode(thirdpersonNode);
+			}
 			m_iRagdollFrame = 1;
 		}
 	}
@@ -764,9 +785,12 @@ namespace ImprovedCamera {
 		{
 			if (m_iRagdollFrame < 2)
 			{
-				auto thirdpersonNode = player->Get3D(0)->AsNode();
-				thirdpersonNode->local.translate = m_thirdpersonLocalTranslate;
-				Helper::UpdateNode(thirdpersonNode);
+				auto thirdpersonNode = PlayerNode(player, false);
+				if (thirdpersonNode)
+				{
+					thirdpersonNode->local.translate = m_thirdpersonLocalTranslate;
+					Helper::UpdateNode(thirdpersonNode);
+				}
 			}
 			m_iRagdollFrame = 0;
 		}
@@ -931,7 +955,9 @@ namespace ImprovedCamera {
 	void ImprovedCameraSE::UpdateSkeleton(bool show)
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!thirdpersonNode)
+			return;
 
 		static std::vector<std::unique_ptr<NodeOverride>> overrides;
 
@@ -1035,6 +1061,9 @@ namespace ImprovedCamera {
 		{
 			auto fpWeaponNode = Helper::FindNode(firstpersonNode, "WEAPON");
 			auto tpWeaponNode = Helper::FindNode(thirdpersonNode, "WEAPON");
+
+			if (!fpWeaponNode || !tpWeaponNode)
+				return;
 
 			fpWeaponNode->world.scale = tpWeaponNode->world.scale;
 			fpWeaponNode->world.rotate = tpWeaponNode->world.rotate;
@@ -1157,8 +1186,10 @@ namespace ImprovedCamera {
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto playerState = player->AsActorState();
-		auto firstpersonNode = player->Get3D(1)->AsNode();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto firstpersonNode = PlayerNode(player, true);
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!firstpersonNode || !thirdpersonNode)
+			return;
 		auto headNode = Helper::GetHeadNode(thirdpersonNode);
 		auto eyeBoneNode = Helper::FindNode(firstpersonNode, "NPCEyeBone");
 
@@ -1230,8 +1261,10 @@ namespace ImprovedCamera {
 	void ImprovedCameraSE::TranslateFirstPersonModel()
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
-		auto firstpersonNode = player->Get3D(1)->AsNode();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto firstpersonNode = PlayerNode(player, true);
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!firstpersonNode || !thirdpersonNode)
+			return;
 		auto headNode = Helper::GetHeadNode(thirdpersonNode);
 		if (!headNode)
 			return;
@@ -1254,8 +1287,10 @@ namespace ImprovedCamera {
 	void ImprovedCameraSE::TranslateThirdPersonModel()
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
-		auto firstpersonNode = player->Get3D(1)->AsNode();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto firstpersonNode = PlayerNode(player, true);
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!firstpersonNode || !thirdpersonNode)
+			return;
 		auto headNode = Helper::GetHeadNode(thirdpersonNode);
 		if (!headNode)
 			return;
@@ -1295,7 +1330,9 @@ namespace ImprovedCamera {
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto playerState = player->AsActorState();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!thirdpersonNode)
+			return;
 		auto headNode = Helper::GetHeadNode(thirdpersonNode);
 		auto eyeNode = Helper::FindNode(thirdpersonNode, "NPCEyeBone");
 		bool isVampireLord = Helper::IsTransformed(player, "DLC1VampireBeastRace");
@@ -1353,7 +1390,9 @@ namespace ImprovedCamera {
 	void ImprovedCameraSE::UpdateLootAtPosition()
 	{
 		auto player = RE::PlayerCharacter::GetSingleton();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!thirdpersonNode)
+			return;
 		auto headNode = Helper::GetHeadNode(thirdpersonNode);
 		if (!headNode)
 			return;
@@ -1421,7 +1460,9 @@ namespace ImprovedCamera {
 		auto player = RE::PlayerCharacter::GetSingleton();
 		auto camera = RE::PlayerCamera::GetSingleton();
 		auto firstpersonState = (RE::FirstPersonState*)camera->cameraStates[RE::CameraState::kFirstPerson].get();
-		auto thirdpersonNode = player->Get3D(0)->AsNode();
+		auto thirdpersonNode = PlayerNode(player, false);
+		if (!thirdpersonNode)
+			return false;
 		auto headNode = Helper::GetHeadNode(thirdpersonNode);
 		auto cameraNode = camera->cameraRoot.get()->AsNode();
 		auto isWerewolf = m_ICamera->GetID() == RE::CameraState::kThirdPerson && (m_ICamera->GetStateID() == CameraThirdPerson::State::kWerewolfEnter || m_ICamera->GetStateID() == CameraThirdPerson::State::kWerewolfIdle);
